@@ -2366,7 +2366,10 @@ export default function Dashboard() {
           <div className="flex items-center gap-4">
             <span className="text-sm font-bold text-white tracking-wide">
               {activeTab === "chat" ? (userRole === "teacher" ? "Tutor Playground" : "Socratic Study Desk") : 
-               activeTab === "quiz" ? "Adaptive GMAT/GRE Desk" :
+               activeTab === "quiz" ? (() => {
+                 const activeModule = selectedSubject.modules?.find(m => m.id === selectedModuleForPractice);
+                 return activeModule ? `Module Practice: ${activeModule.name}` : `${selectedSubject.name} Practice Desk`;
+               })() :
                activeTab === "teacher" ? "Course Materials Panel" :
                activeTab === "gradebook" ? "Student Roster & Gradebook" :
                activeTab === "courses" ? "My Course Materials" : "Achievements & Progress"}
@@ -2651,10 +2654,11 @@ export default function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
-                className="h-full flex flex-col overflow-y-auto p-6 md:p-8 bg-[#0a0a0f]/20"
+                className="h-full flex flex-col lg:flex-row overflow-hidden bg-[#0a0a0f]/20"
               >
-                
-                <div className="max-w-3xl mx-auto w-full space-y-6 flex flex-col justify-between min-h-[80vh]">
+                {/* Left Column: Quiz Workspace */}
+                <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+                  <div className="max-w-3xl mx-auto w-full space-y-6 flex flex-col justify-between min-h-[80vh]">
                   
                   {quizCompleted ? (
                     /* Final Quiz Session Summary Screen */
@@ -3088,6 +3092,139 @@ export default function Dashboard() {
                   )}
 
                 </div>
+                </div>
+
+                {/* Right Column: Persistent Socratic Assistant Chat */}
+                {!quizCompleted && !isLoadingQuestion && (
+                  <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-white/5 bg-[#0a0a0f]/40 flex flex-col h-[500px] lg:h-full shrink-0">
+                    
+                    {/* Sidebar Header */}
+                    <div className="px-6 py-4 border-b border-white/5 bg-[#0a0a0f]/60 flex items-center justify-between animate-fade-in">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{selectedPersona.avatar}</span>
+                        <div>
+                          <h4 className="text-sm font-bold text-white leading-none">{selectedPersona.name}</h4>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 font-semibold">Socratic Assistant</p>
+                        </div>
+                      </div>
+                      <span className="text-[9px] px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-semibold tracking-wide uppercase">
+                        Socratic Mode
+                      </span>
+                    </div>
+
+                    {/* Messages list */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                      {activeQuizMessages.map((msg, index) => (
+                        <div 
+                          key={index}
+                          className={`flex ${msg.sender === "student" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div className="max-w-[85%] flex gap-2">
+                            {msg.sender === "tutor" && (
+                              <div className="h-6 w-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-xs shrink-0 mt-0.5">
+                                {selectedPersona.avatar}
+                              </div>
+                            )}
+                            <div 
+                              className={`rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                                msg.sender === "student"
+                                  ? selectedSubject.id === "math" ? "bg-violet-600 text-white rounded-tr-none shadow-md shadow-violet-600/10" :
+                                    selectedSubject.id === "science" ? "bg-cyan-600 text-white rounded-tr-none shadow-md shadow-cyan-600/10" :
+                                    selectedSubject.id === "history" ? "bg-amber-600 text-white rounded-tr-none shadow-md shadow-amber-600/10" :
+                                    "bg-rose-600 text-white rounded-tr-none shadow-md shadow-rose-600/10"
+                                  : "glass-panel text-zinc-100 rounded-tl-none border border-white/5"
+                              }`}
+                            >
+                              <p className="whitespace-pre-wrap">{msg.text}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {isTyping && (
+                        <div className="flex justify-start animate-pulse">
+                          <div className="flex gap-2">
+                            <div className="h-6 w-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-xs shrink-0">
+                              {selectedPersona.avatar}
+                            </div>
+                            <div className="glass-panel rounded-2xl rounded-tl-none px-3 py-2 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={quizChatEndRef} />
+                    </div>
+
+                    {/* Quick Doubts */}
+                    <div className="px-4 py-2 border-t border-white/5 bg-[#0a0a0f]/20 flex flex-col gap-1.5">
+                      <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider px-1">Quick Doubts:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          disabled={usedHints.includes("concept") || hasSubmitted}
+                          onClick={() => {
+                            triggerTutorHint("concept");
+                            setActiveHintText(`💡 Concept Hint: ${activeQuestion.conceptHint}`);
+                          }}
+                          className="text-[10px] text-violet-400 bg-violet-500/5 hover:bg-violet-500/10 border border-violet-500/10 rounded-full px-2.5 py-1.5 transition-all disabled:opacity-40 disabled:pointer-events-none text-left"
+                        >
+                          Explain Concept (-10 XP)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={usedHints.includes("formula") || hasSubmitted}
+                          onClick={() => {
+                            triggerTutorHint("formula");
+                            setActiveHintText(`🔍 Formula Reminder: ${activeQuestion.formulaReminder}`);
+                          }}
+                          className="text-[10px] text-cyan-400 bg-cyan-500/5 hover:bg-cyan-500/10 border border-cyan-500/10 rounded-full px-2.5 py-1.5 transition-all disabled:opacity-40 disabled:pointer-events-none text-left"
+                        >
+                          Show Formula (-10 XP)
+                        </button>
+                        <button
+                          type="button"
+                          disabled={usedHints.includes("clue") || hasSubmitted}
+                          onClick={() => {
+                            triggerTutorHint("clue");
+                            setActiveHintText(`🧩 Small Clue: ${activeQuestion.smallClue}`);
+                          }}
+                          className="text-[10px] text-amber-400 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/10 rounded-full px-2.5 py-1.5 transition-all disabled:opacity-40 disabled:pointer-events-none text-left"
+                        >
+                          Give Clue (-15 XP)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Input bar */}
+                    <div className="p-4 border-t border-white/5 bg-[#07070a] flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ask a doubt about this question..."
+                        value={inputVal}
+                        onChange={(e) => setInputVal(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSendQuizMessage()}
+                        className="flex-1 rounded-xl px-3.5 py-2.5 text-xs glass-input focus:outline-none transition-all duration-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSendQuizMessage()}
+                        className={`h-9 w-9 rounded-xl flex items-center justify-center text-white shadow-md transition-all shrink-0 hover:scale-[1.03] ${
+                          selectedSubject.id === "math" ? "bg-violet-600 hover:shadow-violet-600/10" :
+                          selectedSubject.id === "science" ? "bg-cyan-600 hover:shadow-cyan-600/10" :
+                          selectedSubject.id === "history" ? "bg-amber-600 hover:shadow-amber-600/10" :
+                          "bg-rose-600 hover:shadow-rose-600/10"
+                        }`}
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                      </button>
+                    </div>
+
+                  </div>
+                )}
 
               </motion.div>
             )}
